@@ -147,20 +147,17 @@ sqlite:
 ### 构建
 使用`go build`指令进行编译。
 ```shell
-$ go build github.com/SongZihuan/huan-springboard/src/cmd/huanspringboard/hsbv1
+$ go build github.com/SongZihuan/ssh-watcher/src/cmd/sshwatcher/hswv1
 ```
 
 生产环境下可以使用一些编译标志来压缩目标文件大小。
 ```shell
-$ go build -trimpath -ldflags='-s -w' github.com/SongZihuan/huan-springboard/src/cmd/huanspringboard/hsbv1
+$ go build -trimpath -ldflags='-s -w' github.com/SongZihuan/ssh-watcher/src/cmd/sshwatcher/hswv1
 ```
 
 ### 运行
 执行编译好的可执行文件即可。具体命令行参数可参见上文。
 
-## 协议
-本软件基于 [MIT LICENSE](/LICENSE) 发布。
-了解更多关于 MIT LICENSE , 请 [点击此处](https://mit-license.song-zh.com) 。
 ## 协议
 本软件基于 [MIT LICENSE](/LICENSE) 发布。
 了解更多关于 MIT LICENSE , 请 [点击此处](https://mit-license.song-zh.com) 。

@@ -73,7 +73,7 @@ func (g *GlobalConfig) setDefault() {
 	return
 }
 
-func (g *GlobalConfig) Check() ConfigError {
+func (g *GlobalConfig) check() ConfigError {
 	if g.Mode != DebugMode && g.Mode != ReleaseMode && g.Mode != TestMode {
 		return NewConfigError("bad mode")
 	}

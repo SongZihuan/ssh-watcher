@@ -29,7 +29,7 @@ func (y *YamlConfig) setDefault() {
 }
 
 func (y *YamlConfig) check() (err ConfigError) {
-	err = y.GlobalConfig.Check()
+	err = y.GlobalConfig.check()
 	if err != nil && err.IsError() {
 		return err
 	}
