@@ -12,6 +12,7 @@ import (
 	"github.com/pires/go-proxyproto"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -321,15 +322,15 @@ func (s *SshServer) forward(remoteAddr string, conn net.Conn, target net.Conn, r
 
 		defer wg.Done()
 
-		defer func() {
-			if r := recover(); r != nil {
-				if err, ok := r.(error); ok {
-					logger.Panicf("failed to forward: %s", err.Error())
-				} else {
-					logger.Panicf("failed to forward: %v", r)
-				}
-			}
-		}()
+		//defer func() {
+		//	if r := recover(); r != nil {
+		//		if err, ok := r.(error); ok {
+		//			logger.Panicf("failed to forward: %s", err.Error())
+		//		} else {
+		//			logger.Panicf("failed to forward: %v", r)
+		//		}
+		//	}
+		//}()
 
 		defer func() {
 			close(stopchan1)
@@ -337,7 +338,9 @@ func (s *SshServer) forward(remoteAddr string, conn net.Conn, target net.Conn, r
 
 		_, err := io.Copy(target, conn)
 		if err != nil && conn != nil && target != nil && s.status.Load() == StatusRunning {
-			logger.Errorf("failed to forward from %s to %s: %v", conn.RemoteAddr(), target.RemoteAddr(), err)
+			logger.Errorf("failed to forward from conn (%s) to target (%s): %v", conn.RemoteAddr(), target.RemoteAddr(), err)
+		} else if err != nil && s.status.Load() == StatusRunning {
+			logger.Errorf("failed to forward from conn to target: %v", err)
 		}
 	}()
 
@@ -345,15 +348,15 @@ func (s *SshServer) forward(remoteAddr string, conn net.Conn, target net.Conn, r
 		wg.Add(1)
 		defer wg.Done()
 
-		defer func() {
-			if r := recover(); r != nil {
-				if err, ok := r.(error); ok {
-					logger.Panicf("failed to forward from: %s", err.Error())
-				} else {
-					logger.Panicf("failed to forward from: %v", r)
-				}
-			}
-		}()
+		//defer func() {
+		//	if r := recover(); r != nil {
+		//		if err, ok := r.(error); ok {
+		//			logger.Panicf("failed to forward from: %s", err.Error())
+		//		} else {
+		//			logger.Panicf("failed to forward from: %v", r)
+		//		}
+		//	}
+		//}()
 
 		defer func() {
 			close(stopchan2)
@@ -361,7 +364,9 @@ func (s *SshServer) forward(remoteAddr string, conn net.Conn, target net.Conn, r
 
 		_, err := io.Copy(conn, target)
 		if err != nil && conn != nil && target != nil && s.status.Load() == StatusRunning {
-			logger.Errorf("failed to forward from %s to %s: %v", target.RemoteAddr(), conn.RemoteAddr(), err)
+			logger.Errorf("failed to forward target (%s) to conn (%s): %v", target.RemoteAddr(), conn.RemoteAddr(), err)
+		} else if err != nil && s.status.Load() == StatusRunning {
+			logger.Errorf("failed to forward target to conn: %v", err)
 		}
 	}()
 
@@ -411,16 +416,46 @@ func (s *SshServer) accept(ln net.Listener, srcNetwork string, destProxy bool, d
 		return StatusContinue
 	}
 
+	headerData := make([]byte, len(s.config.HeaderBytes))
+
+	if len(headerData) != 0 && s.config.HeaderCheck.IsEnable(true) {
+		err := conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		if err != nil {
+			_, _ = s.addSshConnectRecordNotSend(remoteSSHAddr.IP, targetAddr, nil, false, now, fmt.Sprintf("读取请求头前设置读取超时失败：%s。", err.Error()))
+			return StatusContinue
+		}
+
+		n, err := conn.Read(headerData)
+		if err != nil {
+			_, _ = s.addSshConnectRecordNotSend(remoteSSHAddr.IP, targetAddr, nil, false, now, fmt.Sprintf("读取请求头部信息错误：%s。", err.Error()))
+			return StatusContinue
+		} else if n != len(s.config.HeaderBytes) {
+			_, _ = s.addSshConnectRecordNotSend(remoteSSHAddr.IP, targetAddr, nil, false, now, fmt.Sprintf("读取请求头部信息错误：读取字节数 %d 和预期字节数 %d 不符。", n, len(s.config.HeaderBytes)))
+			return StatusContinue
+		}
+
+		err = conn.SetReadDeadline(time.Time{})
+		if err != nil {
+			_, _ = s.addSshConnectRecordNotSend(remoteSSHAddr.IP, targetAddr, nil, false, now, fmt.Sprintf("读取请求头后借出读取超时失败：%s。", err.Error()))
+			return StatusContinue
+		}
+
+		if !s.isSSHRequests(headerData) {
+			_, _ = s.addSshConnectRecordNotSend(remoteSSHAddr.IP, targetAddr, nil, false, now, fmt.Sprintf("读取请求头部信息错误：非SSH请求。"))
+			return StatusContinue
+		}
+	}
+
 	loc, ckErr := s.remoteAddrCheck(remoteSSHAddr, targetAddr)
 	if ckErr != nil {
-		_, _ = s.addSshConnectRecord("", remoteSSHAddr.IP, targetAddr, loc, false, now, fmt.Sprintf("来访IP检查出现问题。%s", ckErr.Error()))
+		_, _ = s.addSshConnectRecord(remoteSSHAddr.IP, targetAddr, loc, false, now, fmt.Sprintf("来访IP检查出现问题。%s", ckErr.Error()))
 		return StatusContinue
 	}
 
 	target, err := net.DialTCP(targetNetwork, nil, targetAddr)
 	if err != nil {
 		logger.Errorf("Failed to connect to target %s: %v", targetAddr.String(), err)
-		_, _ = s.addSshConnectRecord("", remoteSSHAddr.IP, targetAddr, loc, false, now, "无法解析来访TCP地址。")
+		_, _ = s.addSshConnectRecord(remoteSSHAddr.IP, targetAddr, loc, false, now, "无法解析来访TCP地址。")
 		return StatusContinue
 	}
 	defer func() {
@@ -434,15 +469,27 @@ func (s *SshServer) accept(ln net.Listener, srcNetwork string, destProxy bool, d
 		_, err = header.WriteTo(target)
 		if err != nil {
 			logger.Errorf("Failed to write proxy header to target %s: %v", targetAddr.String(), err)
-			_, _ = s.addSshConnectRecord("", remoteSSHAddr.IP, targetAddr, loc, false, now, "无法写入Proxy协议头部。")
+			_, _ = s.addSshConnectRecord(remoteSSHAddr.IP, targetAddr, loc, false, now, "无法写入Proxy协议头部。")
 			return StatusContinue
 		}
 	}
 
-	record, err := s.addSshConnectRecord("", remoteSSHAddr.IP, targetAddr, loc, true, now, "允许建立连接。")
+	if headerData != nil && len(headerData) != 0 && s.config.HeaderCheck.IsEnable(true) {
+		n, err := target.Write(headerData)
+		if err != nil {
+			logger.Errorf("Failed to write SSH header to target %s: %v", targetAddr.String(), err)
+			_, _ = s.addSshConnectRecord(remoteSSHAddr.IP, targetAddr, loc, false, now, "无法写入事先读取的SSH协议头部。")
+			return StatusContinue
+		} else if n != len(headerData) {
+			_, _ = s.addSshConnectRecord(remoteSSHAddr.IP, targetAddr, nil, false, now, fmt.Sprintf("无法写入事先读取的SSH协议头部：写入字节数 %d 和预期字节数 %d 不符。", n, len(headerData)))
+			return StatusContinue
+		}
+	}
+
+	record, err := s.addSshConnectRecord(remoteSSHAddr.IP, targetAddr, loc, true, now, "允许建立连接。")
 	if err != nil {
 		logger.Errorf("Fail to save ssh connect record to database: %s", err.Error())
-		_, _ = s.addSshConnectRecord("", remoteSSHAddr.IP, targetAddr, loc, true, now, "无法记录SSH数据，不允许建立连接。")
+		_, _ = s.addSshConnectRecord(remoteSSHAddr.IP, targetAddr, loc, true, now, "无法记录SSH数据，不允许建立连接。")
 		return StatusContinue
 	}
 
@@ -456,21 +503,25 @@ func (s *SshServer) accept(ln net.Listener, srcNetwork string, destProxy bool, d
 }
 
 func (s *SshServer) remoteAddrCheck(remoteAddr *net.TCPAddr, to *net.TCPAddr) (loc *apiip.QueryIpLocationData, err error) {
-	const IspLoopback = "本地回环地址"
-	const IspIntranet = "内网地址"
-
 	ip := remoteAddr.IP
 	if ip == nil {
 		return nil, fmt.Errorf("无法获取IP")
+	}
+
+	loc, err = redisserver.QueryNetIpLocation(ip)
+	if err != nil {
+		logger.Errorf("failed to query ip location: %s", err.Error())
+		return loc, fmt.Errorf("查询IP定位失败（%s）。", err.Error())
+	} else if loc == nil {
+		logger.Panicf("failed to query ip location: loc is nil")
+		return loc, fmt.Errorf("查询IP定位失败（loc is nil）。")
 	}
 
 	isLoopback := ip.IsLoopback()
 	isIntranet := isLoopback || ip.IsPrivate()
 
 	if isLoopback && (config.GetConfig().SSH.RuleList.AlwaysAllowIntranet.IsEnable(false) || config.GetConfig().SSH.RuleList.AlwaysAllowLoopback.IsEnable(true)) {
-		return &apiip.QueryIpLocationData{
-			Isp: IspLoopback,
-		}, nil
+		return loc, nil
 	}
 
 	if !database.SshCheckIP(ip.String()) {
@@ -478,46 +529,23 @@ func (s *SshServer) remoteAddrCheck(remoteAddr *net.TCPAddr, to *net.TCPAddr) (l
 	}
 
 	if isIntranet && config.GetConfig().SSH.RuleList.AlwaysAllowIntranet.IsEnable(false) {
-		if isLoopback {
-			return &apiip.QueryIpLocationData{
-				Isp: IspLoopback,
-			}, nil
-		}
-		return &apiip.QueryIpLocationData{
-			Isp: IspIntranet,
-		}, nil
+		return loc, nil
 	}
 
-	if isIntranet {
-		loc = &apiip.QueryIpLocationData{
-			Isp: "内网地址",
-		}
-	} else {
-		var err error
-		loc, err = redisserver.QueryIpLocation(ip.String())
-		if err != nil {
-			logger.Errorf("failed to query ip location: %s", err.Error())
-			return loc, fmt.Errorf("查询IP定位失败（%s）。", err.Error())
-		} else if loc == nil {
-			logger.Panicf("failed to query ip location: loc is nil")
-			return loc, fmt.Errorf("查询IP定位失败（loc is nil）。")
-		}
+	if !database.SshCheckLocationNation(loc.Nation) {
+		return loc, fmt.Errorf("IP地址被SQLite中定义的规则（地区-国家）封禁。")
+	}
 
-		if !database.SshCheckLocationNation(loc.Nation) {
-			return loc, fmt.Errorf("IP地址被SQLite中定义的规则（地区-国家）封禁。")
-		}
+	if !database.SshCheckLocationProvince(loc.Province) {
+		return loc, fmt.Errorf("IP地址被SQLite中定义的规则（地区-省份）封禁。")
+	}
 
-		if !database.SshCheckLocationProvince(loc.Province) {
-			return loc, fmt.Errorf("IP地址被SQLite中定义的规则（地区-省份）封禁。")
-		}
+	if !database.SshCheckLocationCity(loc.City) {
+		return loc, fmt.Errorf("IP地址被SQLite中定义的规则（地区-城市）封禁。")
+	}
 
-		if !database.SshCheckLocationCity(loc.City) {
-			return loc, fmt.Errorf("IP地址被SQLite中定义的规则（地区-城市）封禁。")
-		}
-
-		if !database.SshCheckLocationISP(loc.Isp) {
-			return loc, fmt.Errorf("IP地址被SQLite中定义的规则（地区-ISP）封禁。")
-		}
+	if !database.SshCheckLocationISP(loc.Isp) {
+		return loc, fmt.Errorf("IP地址被SQLite中定义的规则（地区-ISP）封禁。")
 	}
 
 	rcErr := s.countRulesCheck(ip, to, s.config.CountRules)
@@ -527,7 +555,7 @@ func (s *SshServer) remoteAddrCheck(remoteAddr *net.TCPAddr, to *net.TCPAddr) (l
 
 RuleCycle:
 	for _, r := range config.GetConfig().SSH.RuleList.RuleList {
-		if loc == nil || loc.Isp == IspIntranet {
+		if loc.Isp == redisserver.IspIntranet || loc.Isp == redisserver.IspLoopback {
 			if r.HasLocation() {
 				continue RuleCycle
 			}
@@ -546,7 +574,6 @@ RuleCycle:
 			logger.Errorf("check ip error: %s", err.Error())
 			return loc, fmt.Errorf("在配置文件规则策略中，检测IP信息错误。")
 		} else if !ok {
-			logger.Tagf("Tag 2")
 			continue RuleCycle
 		}
 
@@ -632,8 +659,21 @@ func (*SshServer) _countRulesCheck(record []database.SshConnectRecord, rules *co
 	return len(record)-index > int(rules.TryCount) // 返回是否命中策略，true表示命中 (使用大于, 而不是大于等于)
 }
 
-func (s *SshServer) addSshConnectRecord(from string, fromIP net.IP, to *net.TCPAddr, loc *apiip.QueryIpLocationData, accept bool, now time.Time, mark string) (*database.SshConnectRecord, error) {
-	record, err := database.AddSshConnectRecord(from, fromIP, to, accept, now, mark)
+func (s *SshServer) addSshConnectRecord(fromIP net.IP, to *net.TCPAddr, loc *apiip.QueryIpLocationData, accept bool, now time.Time, mark string) (*database.SshConnectRecord, error) {
+	var err error
+
+	if loc == nil {
+		loc, err = redisserver.QueryNetIpLocation(fromIP)
+		if err != nil {
+			logger.Errorf("failed to query ip location: %s", err.Error())
+			mark += fmt.Sprintf("查询IP定位失败（%s）。", err.Error())
+		} else if loc == nil {
+			logger.Panicf("failed to query ip location: loc is nil")
+			mark += fmt.Sprintf("查询IP定位失败（loc is nil）。")
+		}
+	}
+
+	record, err := database.AddSshConnectRecord("", fromIP, loc, to, accept, now, mark)
 	if err != nil {
 		return nil, err
 	}
@@ -645,4 +685,34 @@ func (s *SshServer) addSshConnectRecord(from string, fromIP net.IP, to *net.TCPA
 	}
 
 	return record, nil
+}
+
+func (s *SshServer) addSshConnectRecordNotSend(fromIP net.IP, to *net.TCPAddr, loc *apiip.QueryIpLocationData, accept bool, now time.Time, mark string) (*database.SshConnectRecord, error) {
+	var err error
+
+	if loc == nil {
+		loc, err = redisserver.QueryNetIpLocation(fromIP)
+		if err != nil {
+			logger.Errorf("failed to query ip location: %s", err.Error())
+			mark += fmt.Sprintf("查询IP定位失败（%s）。", err.Error())
+		} else if loc == nil {
+			logger.Panicf("failed to query ip location: loc is nil")
+			mark += fmt.Sprintf("查询IP定位失败（loc is nil）。")
+		}
+	}
+
+	record, err := database.AddSshConnectRecord("", fromIP, loc, to, accept, now, mark)
+	if err != nil {
+		return nil, err
+	}
+
+	return record, nil
+}
+
+func (s *SshServer) isSSHRequests(headerData []byte) bool {
+	if s.config.HeaderCheck.IsDisable(false) {
+		return true
+	}
+
+	return strings.HasPrefix(string(headerData), s.config.Header)
 }

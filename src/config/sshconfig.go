@@ -5,19 +5,19 @@ type SshConfig struct {
 	Forward  SshForwardConfig  `yaml:",inline"`
 }
 
-func (t *SshConfig) setDefault() {
-	t.RuleList.setDefault()
-	t.Forward.setDefault()
+func (s *SshConfig) setDefault() {
+	s.RuleList.setDefault()
+	s.Forward.setDefault()
 	return
 }
 
-func (t *SshConfig) check() (err ConfigError) {
-	err = t.RuleList.check()
+func (s *SshConfig) check() (err ConfigError) {
+	err = s.RuleList.check()
 	if err != nil && err.IsError() {
 		return err
 	}
 
-	err = t.Forward.check()
+	err = s.Forward.check()
 	if err != nil && err.IsError() {
 		return err
 	}

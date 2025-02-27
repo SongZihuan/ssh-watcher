@@ -6,10 +6,39 @@ import (
 	"fmt"
 	"github.com/SongZihuan/ssh-watcher/src/api/apiip"
 	"github.com/SongZihuan/ssh-watcher/src/logger"
+	"net"
 	"time"
 )
 
+const IspLoopback = "本地回环地址"
+const IspIntranet = "内网地址"
+
+func QueryNetIpLocation(ipNet net.IP) (*apiip.QueryIpLocationData, error) {
+	if ipNet.IsLoopback() {
+		return &apiip.QueryIpLocationData{Isp: IspLoopback}, nil
+	} else if ipNet.IsPrivate() {
+		return &apiip.QueryIpLocationData{Isp: IspIntranet}, nil
+	}
+
+	return queryIpLocation(ipNet.String())
+}
+
 func QueryIpLocation(ip string) (*apiip.QueryIpLocationData, error) {
+	ipNet := net.ParseIP(ip)
+	if ipNet == nil {
+		return nil, fmt.Errorf("ip is not valid: %s", ip)
+	}
+
+	if ipNet.IsLoopback() {
+		return &apiip.QueryIpLocationData{Isp: IspLoopback}, nil
+	} else if ipNet.IsPrivate() {
+		return &apiip.QueryIpLocationData{Isp: IspIntranet}, nil
+	}
+
+	return queryIpLocation(ip)
+}
+
+func queryIpLocation(ip string) (*apiip.QueryIpLocationData, error) {
 	key := fmt.Sprintf("ip:location:%s", ip)
 
 	cacheRes := func() *apiip.QueryIpLocationData {

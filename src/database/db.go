@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/SongZihuan/ssh-watcher/src/api/apiip"
 	"github.com/SongZihuan/ssh-watcher/src/logger"
 	"gorm.io/gorm"
 	"net"
@@ -129,7 +130,7 @@ func SshCheckLocationISP(isp string) bool {
 	return false
 }
 
-func AddSshConnectRecord(from string, fromIP net.IP, to *net.TCPAddr, accept bool, t time.Time, mark string) (*SshConnectRecord, error) {
+func AddSshConnectRecord(from string, fromIP net.IP, loc *apiip.QueryIpLocationData, to *net.TCPAddr, accept bool, t time.Time, mark string) (*SshConnectRecord, error) {
 	if fromIP == nil {
 		fromIP = net.ParseIP(from)
 		if fromIP == nil {
@@ -156,6 +157,29 @@ func AddSshConnectRecord(from string, fromIP net.IP, to *net.TCPAddr, accept boo
 		Time:   t,
 		Mark:   mark,
 	}
+
+	if loc != nil {
+		record.Nation = sql.NullString{
+			Valid:  loc.Nation != "",
+			String: loc.Nation,
+		}
+
+		record.Province = sql.NullString{
+			Valid:  loc.Province != "",
+			String: loc.Province,
+		}
+
+		record.City = sql.NullString{
+			Valid:  loc.City != "",
+			String: loc.City,
+		}
+
+		record.ISP = sql.NullString{
+			Valid:  loc.Isp != "",
+			String: loc.Isp,
+		}
+	}
+
 	err := db.Create(&record).Error
 	if err != nil {
 		return nil, err

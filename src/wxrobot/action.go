@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func printError(err error) {
+func logError(err error) {
 	if err == nil {
 		return
 	}
@@ -16,48 +16,48 @@ func printError(err error) {
 }
 
 func SendStart() {
-	printError(Send("服务启动完成。", true))
+	logError(Send("服务启动完成。", true))
 }
 
 func SendWaitStop(reason string) {
-	reason = strings.TrimSuffix(reason, "。")
-
 	if reason == "" {
-		reason = "无"
+		reason = "无。"
+	} else if !strings.HasSuffix(reason, "。") {
+		reason += "。"
 	}
 
-	printError(Send(fmt.Sprintf("服务即将停止（原因：%s）。", reason), true))
+	logError(Send(fmt.Sprintf("服务即将停止。原因：%s", reason), true))
 }
 
 func SendStop(exitcode int, numGoroutine int) {
-	printError(Send(fmt.Sprintf("服务停止。退出代码：%d。剩余协程数：%d", exitcode, numGoroutine), true))
+	logError(Send(fmt.Sprintf("服务停止。退出代码：%d。剩余协程数：%d", exitcode, numGoroutine), true))
 }
 
 func SendSshBanned(ip string, loc *apiip.QueryIpLocationData, to string, reason string) {
-	reason = strings.TrimSuffix(reason, "。")
-
 	if reason == "" {
-		reason = "无"
+		reason = "无。"
+	} else if !strings.HasSuffix(reason, "。") {
+		reason += "。"
 	}
 
 	if loc == nil {
-		printError(Send(fmt.Sprintf("IP %s （无定位信息） 连接到 %s 被拒（原因：%s）。", ip, to, reason), true))
+		logError(Send(fmt.Sprintf("IP %s （无定位信息） 连接到 %s 被拒。原因：%s", ip, to, reason), true))
 	} else {
-		printError(Send(fmt.Sprintf("IP %s （%s） 连接到 %s 被拒（原因：%s）。", ip, loc.String(), to, reason), true))
+		logError(Send(fmt.Sprintf("IP %s （%s） 连接到 %s 被拒。原因：%s", ip, loc.String(), to, reason), true))
 	}
 
 }
 
 func SendSshSuccess(ip string, loc *apiip.QueryIpLocationData, to string, mark string) {
-	mark = strings.TrimSuffix(mark, "。")
-
 	if mark == "" {
-		mark = "无"
+		mark = "无。"
+	} else if !strings.HasSuffix(mark, "。") {
+		mark += "。"
 	}
 
 	if loc == nil {
-		printError(Send(fmt.Sprintf("IP %s （无定位信息） 连接到 %s 成功（备注：%s）。", ip, to, mark), false))
+		logError(Send(fmt.Sprintf("IP %s （无定位信息） 连接到 %s 成功。备注：%s", ip, to, mark), false))
 	} else {
-		printError(Send(fmt.Sprintf("IP %s （%s） 连接到 %s 成功（备注：%s）。", ip, loc.String(), to, mark), false))
+		logError(Send(fmt.Sprintf("IP %s （%s） 连接到 %s 成功。备注：%s", ip, loc.String(), to, mark), false))
 	}
 }

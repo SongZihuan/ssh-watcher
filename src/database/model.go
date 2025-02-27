@@ -67,10 +67,14 @@ func (*SshBannedLocationISP) TableName() string {
 
 type SshConnectRecord struct {
 	Model
-	From          string        `gorm:"column:from;type:VARCHAR(50);not null;"`
-	To            string        `gorm:"column:to;type:VARCHAR(50);not null;"`
-	Accept        bool          `gorm:"column:accept;not null;"`
-	Time          time.Time     `gorm:"column:time;not null;"`
-	TimeConsuming sql.NullInt64 `gorm:"column:time_consuming;"` // 单位：毫秒（Millisecond）
-	Mark          string        `gorm:"column:mark;type:VARCHAR(200);not null;"`
+	From          string         `gorm:"column:from;type:VARCHAR(50);not null;"`
+	Nation        sql.NullString `gorm:"column:nation;type:VARCHAR(50);"`
+	Province      sql.NullString `gorm:"column:province;type:VARCHAR(50);"`
+	City          sql.NullString `gorm:"column:city;type:VARCHAR(50);"`
+	ISP           sql.NullString `gorm:"column:isp;type:VARCHAR(50);"`
+	To            string         `gorm:"column:to;type:VARCHAR(50);not null;"`
+	Accept        bool           `gorm:"column:accept;not null;"`
+	Time          time.Time      `gorm:"column:time;not null;"`
+	TimeConsuming sql.NullInt64  `gorm:"column:time_consuming;"` // 单位：毫秒（Millisecond）
+	Mark          string         `gorm:"column:mark;type:VARCHAR(200);not null;"`
 }

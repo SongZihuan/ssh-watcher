@@ -14,6 +14,9 @@ type SshForwardConfig struct {
 	IPv6DestAddress string           `yaml:"ipv6-dest"`
 	AllowCross      utils.StringBool `yaml:"allow-cross"` // 允许 ipv4 -> ipv6 或 ipv6 -> ipv4
 
+	HeaderCheck utils.StringBool `yaml:"header-check"`
+	Header      string           `yaml:"header"`
+
 	IPv4SrcServerProxy utils.StringBool `yaml:"ipv4-src-proxy"`
 	IPv6SrcServerProxy utils.StringBool `yaml:"ipv6-src-proxy"`
 
@@ -31,7 +34,8 @@ type SshForwardConfig struct {
 	ResolveIPv6SrcAddress  *net.TCPAddr `yaml:"-"`
 	ResolveIPv6DestAddress *net.TCPAddr `yaml:"-"`
 
-	Cross bool `yaml:"-"` // 开启交叉
+	Cross       bool   `yaml:"-"` // 开启交叉
+	HeaderBytes []byte `yaml:"-"`
 }
 
 func (s *SshForwardConfig) setDefault() {
@@ -55,6 +59,12 @@ func (s *SshForwardConfig) setDefault() {
 		s.IPv6DestRequestProxyVersion = 1
 	}
 
+	s.HeaderCheck.SetDefaultEnable()
+
+	if s.HeaderCheck.IsEnable(true) && s.Header == "" {
+		s.Header = "SSH-2.0-"
+	}
+
 	for _, r := range s.CountRules {
 		r.setDefault()
 	}
@@ -65,6 +75,12 @@ func (s *SshForwardConfig) setDefault() {
 func (s *SshForwardConfig) check() (cfgErr ConfigError) {
 	if s.SrcPort <= 0 || s.SrcPort > 65535 { // 一般不建议使用端口号0
 		return NewConfigError("src point must be between 1 and 65535")
+	}
+
+	if s.HeaderCheck.IsEnable(true) {
+		s.HeaderBytes = []byte(s.Header)
+	} else {
+		s.HeaderBytes = []byte{}
 	}
 
 	if s.IPv4DestRequestProxy.IsEnable(false) || s.IPv6DestRequestProxy.IsEnable(false) {
