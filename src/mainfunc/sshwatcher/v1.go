@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/SongZihuan/ssh-watcher/src/config"
-	"github.com/SongZihuan/ssh-watcher/src/config/watcher"
 	"github.com/SongZihuan/ssh-watcher/src/database"
 	"github.com/SongZihuan/ssh-watcher/src/flagparser"
 	"github.com/SongZihuan/ssh-watcher/src/ipcheck"
@@ -80,18 +79,6 @@ func MainV1() (exitcode int) {
 
 	if !logger.IsReady() {
 		return utils.ExitByErrorMsg("logger unknown error")
-	}
-
-	if flagparser.RunAutoReload() {
-		err = watcher.WatcherConfigFile()
-		if err != nil {
-			return utils.ExitByError(err)
-		}
-		defer watcher.CloseNotifyConfigFile()
-
-		logger.Infof("Auto reload enable.")
-	} else {
-		logger.Infof("Auto reload disable.")
 	}
 
 	err = smtpserver.InitSmtp()

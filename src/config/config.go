@@ -3,7 +3,6 @@ package config
 import (
 	"github.com/SongZihuan/ssh-watcher/src/flagparser"
 	"github.com/SongZihuan/ssh-watcher/src/utils"
-	"github.com/fsnotify/fsnotify"
 	"os"
 	"path/filepath"
 	"sync"
@@ -18,7 +17,6 @@ type ConfigStruct struct {
 	configPath     string
 	configDir      string
 	configFileName string
-	watcher        *fsnotify.Watcher
 
 	Yaml *YamlConfig
 }
@@ -93,7 +91,6 @@ func (c *ConfigStruct) Reload() (err ConfigError) {
 		configPath:     c.configPath,
 		configDir:      c.configDir,
 		configFileName: c.configFileName,
-		watcher:        c.watcher,
 		Yaml:           c.Yaml,
 		// 新建类型
 	}
@@ -107,7 +104,6 @@ func (c *ConfigStruct) Reload() (err ConfigError) {
 				configPath:     bak.configPath,
 				configDir:      bak.configDir,
 				configFileName: bak.configFileName,
-				watcher:        bak.watcher,
 				Yaml:           bak.Yaml,
 				// 新建类型 Lock不需要复制
 			}

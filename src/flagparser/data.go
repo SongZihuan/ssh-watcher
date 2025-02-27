@@ -44,11 +44,6 @@ type flagData struct {
 	OutputConfigFileShortName string
 	OutputConfigFileUsage     string
 
-	NotAutoReloadData      bool
-	NotAutoReloadName      string
-	NotAutoReloadShortName string
-	NotAutoReloadUsage     string
-
 	Usage string
 }
 
@@ -82,11 +77,6 @@ func initData() {
 		OutputConfigFileName:      "output-config",
 		OutputConfigFileShortName: "",
 		OutputConfigFileUsage:     fmt.Sprintf("%s", "The location of the reverse output after the backend service running configuration file is parsed. The option is a string and the default is config.output.yaml in the running directory."),
-
-		NotAutoReloadData:      false,
-		NotAutoReloadName:      "not-auto-reload",
-		NotAutoReloadShortName: "",
-		NotAutoReloadUsage:     fmt.Sprintf("%s", "Disable automatic detection of configuration file changes and reloading of system programs. This feature is enabled by default. This feature consumes a certain amount of performance. If your performance is not enough, you can choose to disable it."),
 
 		Usage: "",
 	}
@@ -261,8 +251,6 @@ func (d *flagData) setFlag() {
 
 	flag.StringVar(&d.OutputConfigFileData, data.OutputConfigFileName, data.OutputConfigFileData, data.OutputConfigFileUsage)
 	flag.StringVar(&d.OutputConfigFileData, data.OutputConfigFileName[0:1], data.OutputConfigFileData, data.OutputConfigFileUsage)
-
-	flag.BoolVar(&d.NotAutoReloadData, data.NotAutoReloadName, data.NotAutoReloadData, data.NotAutoReloadUsage)
 
 	flag.Usage = func() {
 		_, _ = d.PrintUsage()

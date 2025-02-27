@@ -3,7 +3,6 @@ module github.com/SongZihuan/ssh-watcher
 go 1.22
 
 require (
-	github.com/fsnotify/fsnotify v1.8.0
 	github.com/mattn/go-isatty v0.0.20
 	github.com/pires/go-proxyproto v0.8.0
 	github.com/redis/go-redis/v9 v9.7.0

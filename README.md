@@ -38,12 +38,6 @@ Usage of HSWv1.exe:
           The location of the reverse output after the backend service running
           configuration file is parsed. The option is a string and the default
           is config.output.yaml in the running directory.
-
-  --not-auto-reload
-          Disable automatic detection of configuration file changes and
-          reloading of system programs. This feature is enabled by default. This
-          feature consumes a certain amount of performance. If your performance
-          is not enough, you can choose to disable it.
 ```
 
 根据上面的描述，我们主要使用`--config`参数，该参数表示配置文件的位置。默认值是：`config.yaml`。
